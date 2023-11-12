@@ -156,8 +156,11 @@ def getAverageDayArray(customerID,indexToAverage):
     dates = getDatesFromData(customer_data)
 
     days = np.array([])
+    i = 0
     for d in dates:
-        print(d)
+        if(i > 96*3):
+            break
+        # print(d)
         day_customer_data = trimDataToDay(customer_data, d)
         day = np.full((96),float('NaN'))
 
@@ -186,7 +189,12 @@ def getAverageDayArray(customerID,indexToAverage):
 # total cost after solar 13
 
 def determineBatteryMode(array):
-    return 1
+    if (array[7] > array[8] + 0.1):
+        return 2
+    elif (array[7] < array[8] - 0.1):
+        return 3
+    else:
+        return 1
 
 def generateModelTable(customerID,numberOfBatteries,NumberOfPanels):
     customer_data = getCustomerData(customerID)
@@ -221,7 +229,8 @@ def generateModelTable(customerID,numberOfBatteries,NumberOfPanels):
         battery_charge_percentage = batteryChargePercentage(battery_charge_level)
         
         total_cost_after_solar = energyCostPostSolar(cost_before_solar,newGridConsumption(load_power,supplied_pv,scaled_pv,battery_charge,battery_discharge))
-        
+        cost_saved = cost_before_solar - total_cost_after_solar
+
         array.append([
             date,
             pv_total_power,
@@ -243,7 +252,8 @@ def generateModelTable(customerID,numberOfBatteries,NumberOfPanels):
             battery_discharge,
             battery_charge_level,
             battery_charge_percentage,
-            total_cost_after_solar
+            total_cost_after_solar,
+            cost_saved
         ])
         
     # array = np.array(array, dtype=[
@@ -291,7 +301,8 @@ def generateModelTable(customerID,numberOfBatteries,NumberOfPanels):
         "battery_discharge",
         "battery_charge_level",
         "battery_charge_percentage",
-        "total_cost_after_solar"
+        "total_cost_after_solar",
+        "cost_saved"
     ])
 
 def displayData(CustomerID):
@@ -400,10 +411,10 @@ def batterySimulator(BatteryChargeRatio, numOfBatteries):
 
     return batteryConsumption
 
-displayData(57)
+# displayData(57)
 
 # Website
-customer_id = st.number_input('Customer ID', min_value=0, max_value=100, value=57, step=1)
+customer_id = st.selectbox('Customer ID', options=getCustomerIDs(), index=0)
 no_of_panels = st.number_input('Number of panels', min_value=0, max_value=100, value=10, step=1)
 no_of_batteries = st.number_input('Number of batteries', min_value=0, max_value=100, value=2, step=1)
 
@@ -413,5 +424,24 @@ end = st.date_input('End date', min_value=min(df["date"]), max_value=max(df["dat
 
 df = df[(df["date"] >= np.datetime64(start)) & (df["date"] <= np.datetime64(end))]
 st.write(df)
-st.line_chart(df, x="date", y=["load_power", "pv_total_power"])
+
+st.title("Usage and Generation")
+st.line_chart(df, x="date", y=["load_power", "scaled_pv"])
+
+# Total cost
+st.title("Costs & Savings")
+st.line_chart(df, x="date", y=["cost_saved", "cost_before_solar", "total_cost_after_solar"])
+st.write("Total cost saved: NZD " + str(np.round(sum(df["cost_saved"]),4)))
+
+st.title("Battery Charge Level")
 st.line_chart(df, x="date", y=["battery_charge_level", "supplied_pv"])
+
+avg_load = getAverageDayArray(customer_id,5)
+avg_pv = getAverageDayArray(customer_id,6)
+
+st.title("Average Usage During the Day")
+st.line_chart(getAverageDayArray(customer_id,5))
+st.write(getAverageDayArray(customer_id,5))
+
+st.title("Total Average Daily Cost")
+st.write(sum(getAverageDayArray(customer_id,5)))
